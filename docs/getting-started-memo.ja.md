@@ -44,16 +44,19 @@ ValueError: Section 'default' not found in config file: /home/penguin/.config/oq
 ```
 → 「設定ファイルが無ければ黙って環境変数にフォールバック」のような曖昧な挙動ではなく、明示的にエラーになる。Skill 側でエラーメッセージをそのままユーザーに見せれば十分に自己解決可能。
 
-## 3. 【重要・要注意】`OqtopusConfig` の `repr`/`str` に `api_token` が平文で出る
+## 3. `OqtopusConfig` の `repr`/`str` に `api_token` は出ない（現行版）
 
-oqtopus-skills-design.md で「未検証の懸念」として挙げられていた件を実機で確認した。**確認：本当に漏れる。**
+以前の `oqtopus-client` では `@dataclass(frozen=True)` のデフォルト `__repr__` によって `api_token` が平文で表示される問題があった。しかし、[oqtopus-client の現行実装](https://github.com/oqtopus-team/oqtopus-client)（GitHub の `develop` および v1.0.1 以降）では `api_token` が `repr` の対象から除外されており、`repr(config)`/`str(config)` からトークンが漏れないよう修正されている。
 
 ```python
->>> OqtopusConfig(base_url="https://example.com", api_token="SECRET_TOKEN_ABC")
-OqtopusConfig(base_url='https://example.com', api_token='SECRET_TOKEN_ABC', proxy=None, timeout=30.0, retry_max_attempts=3, retry_backoff_seconds=0.2, retry_status_codes=None, retry_methods=None)
+>>> config = OqtopusConfig(base_url="https://example.com", api_token="SECRET_TOKEN_ABC")
+>>> "SECRET_TOKEN_ABC" in repr(config)
+False
+>>> "SECRET_TOKEN_ABC" in str(config)
+False
 ```
 
-`@dataclass(frozen=True)` のデフォルト `__repr__` をそのまま使っているため、`print(config)` はもちろん、**未捕捉例外のトレースバックに `config` オブジェクトが変数として現れた場合も丸ごと出力ログに残る。** Skill/エージェントの規約として「`OqtopusConfig` インスタンスを絶対に print/log しない」「例外ハンドラで `repr(e)` 等に巻き込まれないよう注意」は必須と確定してよい。
+したがって、この問題を理由に現行版の `OqtopusConfig` を print/log することを一律禁止する必要はない。ただし、古いバージョンを使っている環境では平文表示が起こりうるため、`oqtopus-client` を最新版へ更新すること。トークンを含む設定オブジェクトをログへ出さない運用も、追加の防御策としては引き続き有効。
 
 ## 4. QASM3出力の「未検証」だった点も確認できた
 
