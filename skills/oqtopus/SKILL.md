@@ -18,9 +18,6 @@ QASM.
 - **Never read the config file** (`~/.config/oqtopus/config.ini` or
   `$XDG_CONFIG_HOME/oqtopus/config.ini`). It stores the API token in plaintext. The SDK reads
   it for you; you only ever need the section name.
-- **Never print, log, or repr an `OqtopusConfig`.** It is a plain dataclass, so `api_token`
-  appears in full in its default `repr` — including in any uncaught traceback that has the
-  config in a local variable. Do not put a config object in an f-string or an error message.
 - **Never call** `create_api_token`, `delete_api_token`, or `delete_current_user`. Token and
   account management is the user's job, in the web console.
 - **A returned result does not mean the job succeeded.** See "Read the result".

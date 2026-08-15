@@ -55,5 +55,8 @@ in detail, and circuit design guidance. Token and account management is delibera
 
 ## Development
 
-Design notes and the decision log live in [`docs/`](docs/) and
-[`oqtopus-skills-design.md`](oqtopus-skills-design.md).
+Design notes and the decision log live in [`docs/`](docs/).
+
+## License
+
+[Apache License 2.0](LICENSE).
