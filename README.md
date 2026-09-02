@@ -47,11 +47,11 @@ the token appears in plaintext in both.
 
 ## Scope
 
-Covered: choosing a device, submitting OpenQASM 3 programs, waiting, reading results, and
-browsing job history.
+Covered: choosing a device, submitting OpenQASM 3 programs, estimation operators, waiting,
+reading results, and browsing job history.
 
-Not covered yet: server-side execution (SSE), batch/parallel submission, estimation operators
-in detail, and circuit design guidance. Token and account management is deliberately excluded.
+Not covered yet: server-side execution (SSE), batch/parallel submission, and circuit design
+guidance. Token and account management is deliberately excluded.
 
 ## Development
 
