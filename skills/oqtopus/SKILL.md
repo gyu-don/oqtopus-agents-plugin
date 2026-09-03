@@ -102,6 +102,10 @@ Check `dev.status == "available"` and `dev.n_qubits >= <qubits your circuit uses
 `dev.device_info`, `dev.raw`, or calibration data wholesale into the conversation; they can be
 large. Read the specific field you need.
 
+`dev.basis_gates` (e.g. `['sx', 'x', 'rz', 'cx']`) and `dev.supported_instructions` (e.g.
+`['measure', 'barrier']`) list what the device natively accepts — useful to sanity-check a gate
+choice before submitting, without needing `dev.device_info`.
+
 ## Build the program
 
 The program is an OpenQASM 3 string. Write it directly:
@@ -152,9 +156,10 @@ spec = OqtopusJobSpec.sampling(
 ```
 
 Job types: `sampling` (measure and count bitstrings — the default choice), `estimation`
-(expectation value of an `operator` — see "Estimation"), `multi_manual`, `sse` (server-side
-execution of a Python file near the QPU). `program` also accepts a sequence of strings for
-multi-program jobs.
+(expectation value of an `operator` — see "Estimation"), `multi_manual` (bundle several
+programs into one job — pass a sequence of QASM strings to `program`; read
+`result.get_counts()` for the combined bitstring counts or `result.get_divided_counts()` for
+per-program integer-keyed counts), `sse` (server-side execution of a Python file near the QPU).
 
 **Non-blocking — prefer this.** Submit, report the job id, and check back on a later turn:
 
@@ -169,8 +174,8 @@ job_id = client.submit_job(spec).job_id
 result = client.run_sampling(spec, timeout=120)   # returns a finished job
 ```
 
-Use `run_sampling` / `run_estimation` rather than the generic `run_job` so the result is the
-typed subclass. A bad `device_id` raises `UserApiError` here, synchronously.
+Use `run_sampling` / `run_estimation` / `run_multi_manual` rather than the generic `run_job` so
+the result is the typed subclass. A bad `device_id` raises `UserApiError` here, synchronously.
 
 ## Estimation
 
@@ -222,6 +227,9 @@ client.status(job_id)      # 'registered'|'submitted'|'ready'|'running'|'succeed
 client.is_finished(job_id)
 ```
 
+`client.get_job_status(job_id)` returns the same status wrapped in a raw response object
+(`.job_id`, `.status`) instead of the bare value — rarely needed over `status()`.
+
 For a real QPU, poll with `client.status(job_id)` once per turn instead of blocking; queues
 can be far longer than any sensible in-process timeout.
 
@@ -235,13 +243,20 @@ result = client.wait(job_id, timeout=300, interval=2.0, interval_backoff=1.5)
 poll later rather than treating it as a failure. It returns normally for **any** terminal
 status, including `failed` and `cancelled`.
 
-Also available: `client.cancel_job(job_id)`.
+Also available: `client.cancel_job(job_id)` and `client.delete_job(job_id)`. Both return
+`models.SuccessSuccessResponse(message=...)` — a fixed one-line confirmation, not job state.
+**"cancel request accepted" does not mean the job actually stopped**: a fast simulator job can
+finish before cancellation takes effect. Check `result.status` afterward rather than assuming
+`cancelled`.
 
 ## Read the result
 
 ```python
-result = client.result(job_id)      # also: client.get_job_result(job_id)
+result = client.result(job_id)
 ```
+
+Aliases with identical behaviour: `client.get_job_result(job_id)`, `client.get_job(job_id)`,
+`client.refresh(job_id)`.
 
 **Check the status first.** No exception was raised is not evidence of success: an invalid
 program is accepted at submit time and only fails later, asynchronously.
@@ -261,6 +276,7 @@ On success, for a sampling job:
 
 ```python
 counts = result.get_counts()          # {'00': 501, '11': 499}, keyed by bitstring
+result.counts_with_integer_keys()     # {'counts': {0: 501, 3: 499}, 'divided_counts': {}}
 result.execution_time                 # seconds
 result.transpile_result.transpiled_program   # server-side transpiled QASM3, for debugging
 ```
@@ -282,9 +298,18 @@ Filters: `status`, `start_time` / `end_time` (datetimes), `q` (search), `page` /
 `order` (by creation time), `fields`. Use this to pick up a job submitted in an earlier session — a `job_id` is
 all you need to resume.
 
+## Announcements
+
+```python
+for a in client.get_announcements_list().announcements or []:
+    print(a.id, a.title, a.start_time, a.end_time)
+
+detail = client.get_announcement(a.id)   # same fields, plus `content`
+```
+
 ## When this file is not enough
 
-`OqtopusClient` has ~35 methods (batch submission, async variants, SSE, announcements). Check
+`OqtopusClient` has ~35 methods (batch submission, async variants, SSE). Check
 the real signature at runtime rather than guessing:
 
 ```python
