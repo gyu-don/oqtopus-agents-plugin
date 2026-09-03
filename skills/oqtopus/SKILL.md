@@ -152,8 +152,9 @@ spec = OqtopusJobSpec.sampling(
 ```
 
 Job types: `sampling` (measure and count bitstrings — the default choice), `estimation`
-(expectation value of an `operator`), `multi_manual`, `sse` (server-side execution of a Python
-file near the QPU). `program` also accepts a sequence of strings for multi-program jobs.
+(expectation value of an `operator` — see "Estimation"), `multi_manual`, `sse` (server-side
+execution of a Python file near the QPU). `program` also accepts a sequence of strings for
+multi-program jobs.
 
 **Non-blocking — prefer this.** Submit, report the job id, and check back on a later turn:
 
@@ -170,6 +171,49 @@ result = client.run_sampling(spec, timeout=120)   # returns a finished job
 
 Use `run_sampling` / `run_estimation` rather than the generic `run_job` so the result is the
 typed subclass. A bad `device_id` raises `UserApiError` here, synchronously.
+
+## Estimation
+
+An estimation job returns the expectation value of a weighted sum of Pauli terms instead of
+bitstring counts. The `operator` is that sum, one entry per term.
+
+**Each `pauli` string must name its qubit indices explicitly, space-separated:** `"X 0 X 1"` —
+operator letter, space, qubit index, space, next letter. The dense form `"XX"` familiar from
+Qiskit's `SparsePauliOp` is **not** accepted. Nothing catches a malformed string locally: the
+API schema types `pauli` as a bare string and the SDK passes it straight through, so the job is
+accepted at submit time and only fails server-side. Copy the spacing of the examples below
+exactly.
+
+```python
+from oqtopus_client import OqtopusEstimationOperator, OqtopusJobSpec
+
+spec = OqtopusJobSpec.estimation(
+    device_id="qulacs",
+    program=program,
+    shots=1000,
+    operator=[
+        OqtopusEstimationOperator(pauli="X 0 X 1", coeff=1.0),
+        OqtopusEstimationOperator(pauli="Z 0 Z 1", coeff=1.0),
+    ],
+    name="bell-estimation",
+)
+```
+
+A term lists only the qubits it acts on — a `Z` on qubit 0 alone is `"Z 0"`, whatever the
+circuit width. Plain dicts (`{"pauli": "X 0 X 1", "coeff": 1.0}`) are accepted in place of the
+wrapper. `coeff` defaults to `None`, so pass it explicitly.
+
+Submit with `client.submit_job(spec)`, or `client.run_estimation(spec, timeout=...)` to block.
+Read the result with `exp_value` / `stds` — `get_counts()` is for sampling jobs and gives
+nothing useful here:
+
+```python
+result.exp_value     # float | None — the estimated expectation value
+result.stds          # float | None — standard deviation of the estimate
+```
+
+Both are `None` when the payload is missing, which is another reason to check
+`result.status` first (see "Read the result").
 
 ## Wait
 
@@ -224,6 +268,8 @@ result.transpile_result.transpiled_program   # server-side transpiled QASM3, for
 `counts` has up to `2**n_qubits` entries. Beyond a few qubits, show the top entries and the
 total shots, and write the full dictionary to a file — never paste a large counts dict into the
 conversation.
+
+For an estimation job, read `exp_value` / `stds` instead — see "Estimation".
 
 ## Job history
 
